@@ -13,6 +13,7 @@ interface Message {
   text: string;
   isAi: boolean;
   isSticker?: boolean; // Optional property for stickers
+  isAudio?: boolean; // Optional property for audio messages
 }
 
 export default function App() {
@@ -35,6 +36,8 @@ export default function App() {
   const [activeCinemaType, setActiveCinemaType] = useState<'cartoons' | 'movies'>('cartoons');
   const [currentUser, setCurrentUser] = useState<{ username: string } | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<BlobPart[]>([]);
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [selectedTeacher, setSelectedTeacher] = useState<any>(null);
   const [bookedTeacherIds, setBookedTeacherIds] = useState<number[]>([]);
@@ -108,6 +111,47 @@ export default function App() {
     }, 1000);
   };
 
+  const handleRecord = async () => {
+    if (!isRecording) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mediaRecorder = new MediaRecorder(stream);
+        mediaRecorderRef.current = mediaRecorder;
+        audioChunksRef.current = [];
+
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            audioChunksRef.current.push(event.data);
+          }
+        };
+
+        mediaRecorder.onstop = () => {
+          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          const audioUrl = URL.createObjectURL(audioBlob);
+          setMessages(prev => [...prev, { text: audioUrl, isAi: false, isAudio: true }]);
+          
+          setTimeout(() => {
+            setMessages(prev => [...prev, { text: "Интересное голосовое сообщение! 🎙️ +15 💎", isAi: true }]);
+            setDiamonds(d => d + 15);
+          }, 1500);
+
+          stream.getTracks().forEach(track => track.stop());
+        };
+
+        mediaRecorder.start();
+        setIsRecording(true);
+      } catch (err) {
+        console.error("Ошибка доступа к микрофону:", err);
+        alert("Не удалось получить доступ к микрофону. Проверьте разрешения вашего браузера.");
+      }
+    } else {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+        mediaRecorderRef.current.stop();
+      }
+      setIsRecording(false);
+    }
+  };
+
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     const form = e.target as HTMLFormElement;
@@ -151,7 +195,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-20">
+    <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-orange-50 pb-20">
       <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b h-16 flex items-center px-4 justify-between">
         <div onClick={() => setSelectedLang(null)} className="flex items-center gap-2 cursor-pointer">
           <img src="/Logo.png" alt="Logo" className="w-10 h-10" />
@@ -261,8 +305,14 @@ export default function App() {
             <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{ scrollBehavior: 'smooth' }}>
               {messages.map((m: any, i) => (
                 <div key={i} className={`flex ${m.isAi ? 'justify-start' : 'justify-end'}`}>
-                  <div className={`max-w-[80%] p-4 rounded-2xl ${m.isAi ? 'bg-slate-100' : 'bg-indigo-600 text-white'} ${m.isSticker ? 'bg-transparent p-0' : ''}`}>
-                    {m.isSticker ? <img src={m.text} className="w-24 h-24" alt="sticker" /> : m.text}
+                  <div className={`max-w-[80%] p-4 rounded-2xl ${m.isAi ? 'bg-slate-100' : 'bg-indigo-600 text-white'} ${m.isSticker || m.isAudio ? 'bg-transparent p-0' : ''}`}>
+                    {m.isSticker ? (
+                      <img src={m.text} className="w-24 h-24" alt="sticker" />
+                    ) : m.isAudio ? (
+                      <audio controls src={m.text} className="h-10 max-w-[200px]" />
+                    ) : (
+                      m.text
+                    )}
                   </div>
                 </div>
               ))}
@@ -280,7 +330,7 @@ export default function App() {
                   </motion.div>
                 )}
               </AnimatePresence>
-              <button onClick={() => setIsRecording(!isRecording)} className={`p-3 rounded-xl ${isRecording ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-100'}`}><Mic size={20} /></button>
+              <button onClick={handleRecord} className={`p-3 rounded-xl transition-all ${isRecording ? 'bg-red-500 text-white animate-pulse shadow-lg shadow-red-500/50' : 'bg-slate-100 hover:bg-slate-200'}`}><Mic size={20} /></button>
               <button onClick={() => setShowStickers(!showStickers)} className="p-3 bg-slate-100 rounded-xl"><Smile size={20} /></button>
               <input value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendMessage()} placeholder="Напишите сообщение..." className="flex-1 bg-slate-100 rounded-xl px-4 outline-none" />
               <button onClick={sendMessage} className="p-3 bg-indigo-600 text-white rounded-xl"><Send size={20} /></button>
