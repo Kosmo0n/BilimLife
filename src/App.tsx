@@ -1,19 +1,41 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Gem, Trophy, Bell, BookOpen, PlayCircle, Globe, Send, Play, 
+  Gem, Trophy, Bell, BookOpen, PlayCircle, Globe, Send, Play,
   Instagram, Youtube, Send as Telegram, Smartphone, CheckCircle2,
-  X, Star, Mic, Smile, Calendar, Clock
+  X, Star, Mic, MicOff, Smile, Calendar, Clock
 } from 'lucide-react';
 import { languages, booksData, cinemaData, teachers } from './data/constants';
 import { DiamondFlight } from './components/DiamondFlight';
 
-// Define a type for messages to ensure type safety and allow for the isSticker property
 interface Message {
   text: string;
   isAi: boolean;
-  isSticker?: boolean; // Optional property for stickers
-  isAudio?: boolean; // Optional property for audio messages
+  isSticker?: boolean;
+  isAudio?: boolean;
+  isPronunciationResult?: boolean;
+  pronunciationScore?: number;
+  expectedText?: string;
+  spokenText?: string;
+}
+
+const pronunciationPhrases: Record<string, string[]> = {
+  en: ['Hello, how are you?', 'The weather is beautiful today.', 'I love learning new languages.', 'Can you help me please?', 'Thank you very much!'],
+  fr: ['Bonjour, comment allez-vous?', 'Il fait beau aujourd\'hui.', 'J\'aime apprendre les langues.', 'Pouvez-vous m\'aider?', 'Merci beaucoup!'],
+  es: ['Hola, ¿cómo estás?', 'Hoy hace buen tiempo.', 'Me encanta aprender idiomas.', '¿Puedes ayudarme por favor?', '¡Muchas gracias!'],
+  cn: ['你好，你怎么样？', '今天天气很好。', '我喜欢学习新语言。', '你能帮我吗？', '非常感谢！'],
+  ar: ['مرحباً، كيف حالك؟', 'الطقس جميل اليوم.', 'أحب تعلم اللغات الجديدة.', 'هل يمكنك مساعدتي؟', 'شكراً جزيلاً!'],
+};
+
+const langCodes: Record<string, string> = { en: 'en-US', fr: 'fr-FR', es: 'es-ES', cn: 'zh-CN', ar: 'ar-SA' };
+
+function calcScore(expected: string, spoken: string): number {
+  const norm = (s: string) => s.toLowerCase().replace(/[^\w\u0080-\uFFFF\s]/g, '').trim();
+  const e = norm(expected).split(/\s+/);
+  const s = norm(spoken).split(/\s+/);
+  if (norm(expected) === norm(spoken)) return 100;
+  let m = 0; e.forEach(w => { if (s.includes(w)) m++; });
+  return Math.round((m / Math.max(e.length, 1)) * 100);
 }
 
 export default function App() {
@@ -36,13 +58,12 @@ export default function App() {
   const [activeCinemaType, setActiveCinemaType] = useState<'cartoons' | 'movies'>('cartoons');
   const [currentUser, setCurrentUser] = useState<{ username: string } | null>(null);
   const [isRecording, setIsRecording] = useState(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<BlobPart[]>([]);
+  const recognitionRef = useRef<any>(null);
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [selectedTeacher, setSelectedTeacher] = useState<any>(null);
   const [bookedTeacherIds, setBookedTeacherIds] = useState<number[]>([]);
+  const [selectedBook, setSelectedBook] = useState<any>(null);
 
-  // Данные для уведомлений и достижений
   const notificationsList = [
     { id: 1, title: 'Добро пожаловать!', text: 'Начни свой путь к новым знаниям прямо сейчас.', time: 'Только что' },
     { id: 2, title: 'Бонус за регистрацию', text: 'Вам начислено 100 стартовых алмазов!', time: '1 час назад' },
@@ -55,9 +76,8 @@ export default function App() {
     { id: 3, title: 'Киноман', desc: 'Выбран раздел Cinema', icon: '🎬', unlocked: activeTab === 'cinema' }
   ];
 
-  // Список путей к стикерам (6 штук)
   const stickers = ['s1', 's2', 's3', 's4', 's5', 's6'].map(s => `/Stikerpack/${s}.png`);
-  
+
   const chatEndRef = useRef<HTMLDivElement>(null);
   const currentLangName = languages.find(l => l.id === selectedLang)?.name;
 
@@ -111,45 +131,43 @@ export default function App() {
     }, 1000);
   };
 
-  const handleRecord = async () => {
-    if (!isRecording) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const mediaRecorder = new MediaRecorder(stream);
-        mediaRecorderRef.current = mediaRecorder;
-        audioChunksRef.current = [];
-
-        mediaRecorder.ondataavailable = (event) => {
-          if (event.data.size > 0) {
-            audioChunksRef.current.push(event.data);
-          }
-        };
-
-        mediaRecorder.onstop = () => {
-          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-          const audioUrl = URL.createObjectURL(audioBlob);
-          setMessages(prev => [...prev, { text: audioUrl, isAi: false, isAudio: true }]);
-          
-          setTimeout(() => {
-            setMessages(prev => [...prev, { text: "Интересное голосовое сообщение! 🎙️ +15 💎", isAi: true }]);
-            setDiamonds(d => d + 15);
-          }, 1500);
-
-          stream.getTracks().forEach(track => track.stop());
-        };
-
-        mediaRecorder.start();
-        setIsRecording(true);
-      } catch (err) {
-        console.error("Ошибка доступа к микрофону:", err);
-        alert("Не удалось получить доступ к микрофону. Проверьте разрешения вашего браузера.");
-      }
-    } else {
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
-        mediaRecorderRef.current.stop();
-      }
-      setIsRecording(false);
+  const handleRecord = () => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) {
+      alert('Ваш браузер не поддерживает распознавание речи. Используйте Chrome или Edge.');
+      return;
     }
+    if (isRecording) {
+      recognitionRef.current?.stop();
+      setIsRecording(false);
+      return;
+    }
+    const phrases = pronunciationPhrases[selectedLang as string] || pronunciationPhrases['en'];
+    const phrase = phrases[Math.floor(Math.random() * phrases.length)];
+    setMessages(prev => [...prev, { text: `🎤 Произнесите: **"${phrase}"**`, isAi: true }]);
+    const rec = new SR();
+    rec.lang = langCodes[selectedLang as string] || 'en-US';
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    recognitionRef.current = rec;
+    rec.onstart = () => setIsRecording(true);
+    rec.onresult = (event: any) => {
+      const spoken = event.results[0][0].transcript;
+      const score = calcScore(phrase, spoken);
+      const gems = score >= 80 ? 20 : score >= 50 ? 10 : 5;
+      setMessages(prev => [...prev, { text: `🗣️ "${spoken}"`, isAi: false }]);
+      setTimeout(() => {
+        setMessages(prev => [...prev, { text: '', isAi: true, isPronunciationResult: true, pronunciationScore: score, expectedText: phrase, spokenText: spoken }]);
+        setDiamonds(d => d + gems);
+      }, 600);
+    };
+    rec.onerror = (e: any) => {
+      if (e.error === 'not-allowed') alert('Доступ к микрофону запрещён. Разрешите его в настройках браузера.');
+      else if (e.error !== 'aborted') setMessages(prev => [...prev, { text: 'Не удалось распознать речь 😕 Попробуйте ещё раз!', isAi: true }]);
+      setIsRecording(false);
+    };
+    rec.onend = () => setIsRecording(false);
+    try { rec.start(); } catch { setIsRecording(false); }
   };
 
   const handleLogin = (e: React.FormEvent) => {
@@ -163,18 +181,18 @@ export default function App() {
 
   if (!selectedLang) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-        <div className="max-w-4xl w-full bg-white/10 backdrop-blur-xl p-8 rounded-3xl border border-white/20 text-center">
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="max-w-4xl w-full bg-white/80 backdrop-blur-xl p-8 rounded-3xl border border-indigo-100 text-center shadow-xl shadow-rose-100/20">
           <div className="flex flex-col items-center mb-10">
             <img src="/Logo.png" alt="Logo" className="w-24 h-24 object-contain mb-6" />
-            <h1 className="text-4xl font-bold text-white mb-2">BilimLife</h1>
+            <h1 className="text-4xl font-black text-slate-800 mb-2">BilimLife</h1>
             {!currentUser && (
               <button onClick={() => setShowLoginModal(true)} className="bg-indigo-600 text-white px-8 py-2 rounded-full font-bold mt-4">Войти</button>
             )}
           </div>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             {languages.map((lang) => (
-              <button key={lang.id} onClick={() => setSelectedLang(lang.id)} className={`p-6 rounded-2xl border border-white/10 text-white bg-gradient-to-br ${lang.bgColor}`}>
+              <button key={lang.id} onClick={() => setSelectedLang(lang.id)} className={`p-6 rounded-2xl border border-white/50 text-slate-700 font-bold bg-gradient-to-br ${lang.bgColor} hover:scale-105 transition-transform shadow-sm`}>
                 <span className="text-5xl block mb-2">{lang.flag}</span>
                 {lang.name}
               </button>
@@ -183,10 +201,10 @@ export default function App() {
         </div>
         {showLoginModal && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
-            <form onSubmit={handleLogin} className="bg-white p-8 rounded-3xl w-full max-w-md">
-              <h2 className="text-2xl font-bold mb-4">Вход</h2>
-              <input name="username" required placeholder="Имя пользователя" className="w-full p-3 bg-slate-100 rounded-xl mb-4 outline-none" />
-              <button type="submit" className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold">Войти</button>
+            <form onSubmit={handleLogin} className="bg-[#7a3035] p-8 rounded-3xl w-full max-w-md border border-[#8a363c] shadow-2xl">
+              <h2 className="text-2xl font-bold mb-4 text-white">Вход</h2>
+              <input name="username" required placeholder="Имя пользователя" className="w-full p-3 bg-[#653236] text-white rounded-xl mb-4 outline-none border border-[#8a363c] placeholder:text-rose-100/30" />
+              <button type="submit" className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors">Войти</button>
             </form>
           </div>
         )}
@@ -195,8 +213,8 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-orange-50 pb-20">
-      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b h-16 flex items-center px-4 justify-between">
+    <div className="min-h-screen flex flex-col">
+      <header className="sticky top-0 z-40 bg-[#7a3035]/80 backdrop-blur-md border-b border-[#8a363c] h-16 flex items-center px-4 justify-between text-white">
         <div onClick={() => setSelectedLang(null)} className="flex items-center gap-2 cursor-pointer">
           <img src="/Logo.png" alt="Logo" className="w-10 h-10" />
           <span className="font-bold text-xl">BilimLife</span>
@@ -204,32 +222,32 @@ export default function App() {
 
         {/* Center - Motto */}
         <div className="hidden lg:flex flex-1 justify-center px-4">
-          <p className="text-slate-400 font-medium italic text-sm tracking-wide">
+          <p className="text-rose-100/60 font-medium italic text-sm tracking-wide">
             "Учитесь с удовольствием — открывайте мир вместе с нами!"
           </p>
         </div>
 
         <div className="flex items-center gap-4">
-          <button onClick={() => setShowNotifications(true)} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors relative">
+          <button onClick={() => setShowNotifications(true)} className="p-2 text-rose-100/70 hover:text-white transition-colors relative">
             <Bell size={22} />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-[#7a3035]"></span>
           </button>
-          <button onClick={() => setShowAchievements(true)} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"><Trophy size={22} /></button>
-          <div className="flex items-center gap-1.5 font-bold"><Gem className="text-cyan-500" size={20} />{diamonds}</div>
+          <button onClick={() => setShowAchievements(true)} className="p-2 text-rose-100/70 hover:text-white transition-colors"><Trophy size={22} /></button>
+          <div className="flex items-center gap-1.5 font-bold"><Gem className="text-cyan-400" size={20} />{diamonds}</div>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 py-8">
+      <main className="max-w-6xl mx-auto px-4 py-8 flex-1 w-full">
         <nav className="flex gap-2 mb-8 overflow-x-auto pb-2">
           {['dashboard', 'teachers', 'library', 'ellie', 'cinema'].map((tab) => (
-            <button key={tab} onClick={() => setActiveTab(tab)} className={`px-6 py-2 rounded-full text-sm font-medium capitalize transition-all ${activeTab === tab ? 'bg-indigo-600 text-white' : 'bg-white'}`}>
+            <button key={tab} onClick={() => setActiveTab(tab)} className={`px-6 py-2 rounded-full text-sm font-bold capitalize transition-all ${activeTab === tab ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/40' : 'bg-[#7a3035]/60 text-rose-100/70 border border-[#8a363c] hover:bg-[#7a3035]'}`}>
               {tab === 'ellie' ? 'Элли AI' : tab}
             </button>
           ))}
         </nav>
 
         {activeTab === 'dashboard' && (
-          <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-3xl p-8 text-white relative overflow-hidden">
+          <div className="bg-gradient-to-br from-[#7a3035] to-[#977851] rounded-3xl p-8 text-white relative overflow-hidden border border-[#8a363c] shadow-2xl">
             <h2 className="text-3xl font-bold mb-2">С возвращением, {currentUser?.username || 'Друг'}!</h2>
             <p className="mb-6 opacity-90">Твой прогресс в {currentLangName} впечатляет.</p>
             <button onClick={collectDiamonds} disabled={!canCollect} className="bg-white text-indigo-600 px-8 py-3 rounded-2xl font-bold disabled:opacity-50">
@@ -241,20 +259,20 @@ export default function App() {
         {activeTab === 'teachers' && (
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
             {filteredTeachers.map((t) => (
-              <div key={t.id} className="bg-white p-4 rounded-2xl border group hover:shadow-md transition-all">
+              <div key={t.id} className="bg-[#7a3035]/40 backdrop-blur-sm p-4 rounded-2xl border border-[#8a363c] group hover:bg-[#7a3035]/60 transition-all text-white">
                 <div className={`aspect-square rounded-xl mb-4 flex items-center justify-center text-3xl font-bold ${t.color}`}>
                   {t.name.split(' ').map(n => n[0]).join('')}
                 </div>
                 <h3 className="font-bold">{t.name}</h3>
-                <p className="text-sm text-slate-500 mb-4">{t.lang} Coach</p>
+                <p className="text-sm text-rose-100/60 mb-4">{t.lang} Coach</p>
                 {bookedTeacherIds.includes(t.id) ? (
-                  <div className="w-full py-2 bg-emerald-50 text-emerald-600 rounded-xl text-sm font-bold flex items-center justify-center gap-2">
+                  <div className="w-full py-2 bg-emerald-500/20 text-emerald-300 rounded-xl text-sm font-bold flex items-center justify-center gap-2">
                     <CheckCircle2 size={16} /> Записано
                   </div>
                 ) : (
-                  <button 
+                  <button
                     onClick={() => { setSelectedTeacher(t); setShowBookingModal(true); }}
-                    className="w-full py-2 bg-slate-100 rounded-xl text-sm font-semibold hover:bg-indigo-600 hover:text-white transition-colors"
+                    className="w-full py-2 bg-[#8a363c]/50 rounded-xl text-sm font-semibold hover:bg-indigo-600 hover:text-white transition-colors"
                   >
                     Записаться
                   </button>
@@ -272,20 +290,25 @@ export default function App() {
                 { id: 'students', title: 'Студенты', subtitle: 'Развитие и хобби (13-21 год)', color: 'bg-blue-500' },
                 { id: 'adults', title: 'Взрослые', subtitle: 'Бизнес и классика (22+ года)', color: 'bg-purple-500' }
               ].map((cat) => (
-                <div key={cat.id} onClick={() => setLibraryView(cat.id)} className="bg-white p-8 rounded-3xl border border-slate-100 cursor-pointer hover:border-indigo-300 hover:shadow-xl transition-all group">
+                <div key={cat.id} onClick={() => setLibraryView(cat.id)} className="bg-[#7a3035]/40 p-8 rounded-3xl border border-[#8a363c] cursor-pointer hover:bg-[#7a3035]/60 transition-all group backdrop-blur-sm text-white">
                   <div className={`w-14 h-14 ${cat.color} rounded-2xl mb-6 flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform`}><BookOpen size={28} /></div>
-                  <h3 className="text-2xl font-bold text-slate-800">{cat.title}</h3>
-                  <p className="text-slate-500 mt-2 font-medium">{cat.subtitle}</p>
+                  <h3 className="text-2xl font-bold">{cat.title}</h3>
+                  <p className="text-rose-100/60 mt-2 font-medium">{cat.subtitle}</p>
                 </div>
               ))
             ) : (
               <div className="col-span-full">
-                <button onClick={() => setLibraryView(null)} className="mb-6 text-indigo-600 font-bold">← Назад</button>
+                <button onClick={() => setLibraryView(null)} className="mb-6 text-rose-100 font-bold hover:text-white transition-colors flex items-center gap-2">
+                  <span className="text-xl">←</span> Назад
+                </button>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                   {(booksData[selectedLang as string]?.[libraryView as string] || []).map((book: any, i: number) => (
-                    <div key={i} className="bg-white rounded-2xl overflow-hidden border">
+                    <div key={i} onClick={() => setSelectedBook(book)} className="bg-[#7a3035]/40 rounded-2xl overflow-hidden border border-[#8a363c] cursor-pointer hover:bg-[#7a3035]/60 transition-all hover:-translate-y-1 backdrop-blur-sm text-white">
                       <img src={book.cover} className="w-full h-48 object-cover" alt={book.title} loading="lazy" />
-                      <div className="p-4"><h4 className="font-bold text-sm truncate">{book.title}</h4><p className="text-xs text-slate-400">{book.author}</p></div>
+                      <div className="p-4">
+                        <h4 className="font-bold text-sm truncate">{book.title}</h4>
+                        <p className="text-xs text-rose-100/60">{book.author}</p>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -305,20 +328,30 @@ export default function App() {
             <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{ scrollBehavior: 'smooth' }}>
               {messages.map((m: any, i) => (
                 <div key={i} className={`flex ${m.isAi ? 'justify-start' : 'justify-end'}`}>
-                  <div className={`max-w-[80%] p-4 rounded-2xl ${m.isAi ? 'bg-slate-100' : 'bg-indigo-600 text-white'} ${m.isSticker || m.isAudio ? 'bg-transparent p-0' : ''}`}>
-                    {m.isSticker ? (
-                      <img src={m.text} className="w-24 h-24" alt="sticker" />
-                    ) : m.isAudio ? (
-                      <audio controls src={m.text} className="h-10 max-w-[200px]" />
-                    ) : (
-                      m.text
-                    )}
-                  </div>
+                  {m.isPronunciationResult ? (
+                    <div className="max-w-[85%] bg-white border-2 border-indigo-100 rounded-2xl p-4 shadow-sm">
+                      <div className={`flex items-center gap-2 mb-2 font-bold text-base ${m.pronunciationScore >= 80 ? 'text-emerald-600' : m.pronunciationScore >= 50 ? 'text-amber-500' : 'text-red-500'}`}>
+                        {m.pronunciationScore >= 80 ? '🏆' : m.pronunciationScore >= 50 ? '👍' : '💪'} Произношение: {m.pronunciationScore}%
+                      </div>
+                      <div className="w-full bg-slate-100 rounded-full h-2 mb-3">
+                        <div className={`h-2 rounded-full ${m.pronunciationScore >= 80 ? 'bg-emerald-500' : m.pronunciationScore >= 50 ? 'bg-amber-400' : 'bg-red-400'}`} style={{ width: `${m.pronunciationScore}%` }} />
+                      </div>
+                      <p className="text-xs text-slate-500 mb-0.5"><span className="font-semibold text-slate-700">Ожидалось:</span> {m.expectedText}</p>
+                      <p className="text-xs text-slate-500 mb-2"><span className="font-semibold text-slate-700">Сказано:</span> {m.spokenText}</p>
+                      <p className="text-sm text-slate-600">{m.pronunciationScore >= 80 ? '🌟 Отлично! +20 💎' : m.pronunciationScore >= 50 ? '👌 Неплохо! Продолжайте! +10 💎' : '🔥 Попробуйте ещё раз! +5 💎'}</p>
+                    </div>
+                  ) : (
+                    <div className={`max-w-[80%] p-4 rounded-2xl ${m.isAi ? 'bg-slate-100 text-slate-800' : 'bg-indigo-600 text-white'} ${m.isSticker || m.isAudio ? 'bg-transparent p-0' : ''}`}>
+                      {m.isSticker ? <img src={m.text} className="w-24 h-24" alt="sticker" />
+                        : m.isAudio ? <audio controls src={m.text} className="h-10 max-w-[200px]" />
+                        : <span dangerouslySetInnerHTML={{ __html: m.text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>') }} />}
+                    </div>
+                  )}
                 </div>
               ))}
               <div ref={chatEndRef} />
             </div>
-            <div className="p-4 border-t flex gap-2 relative">
+            <div className="p-4 border-t bg-white flex gap-2 relative">
               <AnimatePresence>
                 {showStickers && (
                   <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute bottom-20 left-4 bg-white border rounded-2xl p-3 shadow-2xl grid grid-cols-4 gap-2 z-50">
@@ -330,10 +363,14 @@ export default function App() {
                   </motion.div>
                 )}
               </AnimatePresence>
-              <button onClick={handleRecord} className={`p-3 rounded-xl transition-all ${isRecording ? 'bg-red-500 text-white animate-pulse shadow-lg shadow-red-500/50' : 'bg-slate-100 hover:bg-slate-200'}`}><Mic size={20} /></button>
-              <button onClick={() => setShowStickers(!showStickers)} className="p-3 bg-slate-100 rounded-xl"><Smile size={20} /></button>
-              <input value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendMessage()} placeholder="Напишите сообщение..." className="flex-1 bg-slate-100 rounded-xl px-4 outline-none" />
-              <button onClick={sendMessage} className="p-3 bg-indigo-600 text-white rounded-xl"><Send size={20} /></button>
+              <button onClick={handleRecord} title={isRecording ? 'Остановить' : 'Проверить произношение'} className={`p-3 rounded-xl transition-all flex items-center justify-center ${isRecording ? 'bg-red-500 text-white animate-pulse shadow-lg' : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-md'}`}>
+                {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
+              </button>
+              <button onClick={() => setShowStickers(!showStickers)} title="Стикеры" className={`p-3 rounded-xl transition-all ${showStickers ? 'bg-amber-500 text-white' : 'bg-amber-400 text-white hover:bg-amber-500'} shadow-md`}>
+                <Smile size={20} />
+              </button>
+              <input value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendMessage()} placeholder="Напишите сообщение..." className="flex-1 bg-slate-100 rounded-xl px-4 outline-none text-slate-800" />
+              <button onClick={sendMessage} className="p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 shadow-md"><Send size={20} /></button>
             </div>
           </div>
         )}
@@ -347,7 +384,7 @@ export default function App() {
             </div>
             <div className="flex gap-2">
               {['A1', 'A2', 'B1', 'B2'].map(lvl => (
-                <button key={lvl} onClick={() => setCinemaLevel(lvl)} className={`px-4 py-1.5 rounded-lg border text-sm font-semibold ${cinemaLevel === lvl ? 'bg-indigo-600 text-white' : 'bg-white'}`}>{lvl}</button>
+                <button key={lvl} onClick={() => setCinemaLevel(lvl)} className={`px-4 py-1.5 rounded-lg border text-sm font-semibold ${cinemaLevel === lvl ? 'bg-indigo-600 text-white' : 'bg-black'}`}>{lvl}</button>
               ))}
             </div>
             <div className="aspect-video bg-slate-900 rounded-3xl flex flex-col items-center justify-center border border-slate-700 p-8 text-center">
@@ -368,20 +405,20 @@ export default function App() {
       <AnimatePresence>
         {showAchievements && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="bg-white rounded-3xl p-6 w-full max-w-md">
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="bg-[#7a3035] border border-[#8a363c] rounded-3xl p-6 w-full max-w-md text-white shadow-2xl">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold">Ваши достижения</h2>
-                <button onClick={() => setShowAchievements(false)} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition-colors"><X size={20} /></button>
+                <button onClick={() => setShowAchievements(false)} className="p-2 bg-[#653236] rounded-full hover:bg-[#8a363c] transition-colors"><X size={20} /></button>
               </div>
               <div className="space-y-4">
                 {achievementsList.map(a => (
-                  <div key={a.id} className={`flex items-center gap-4 p-4 rounded-2xl border transition-all ${a.unlocked ? 'bg-indigo-50 border-indigo-100' : 'bg-slate-50 border-slate-100 grayscale opacity-60'}`}>
+                  <div key={a.id} className={`flex items-center gap-4 p-4 rounded-2xl border transition-all ${a.unlocked ? 'bg-[#977851]/20 border-[#977851]/40' : 'bg-[#653236]/30 border-[#7a3035] grayscale opacity-40'}`}>
                     <div className="text-3xl">{a.icon}</div>
                     <div>
                       <h4 className="font-bold">{a.title}</h4>
-                      <p className="text-sm text-slate-500">{a.desc}</p>
+                      <p className="text-sm text-rose-100/60">{a.desc}</p>
                     </div>
-                    {a.unlocked && <CheckCircle2 className="ml-auto text-indigo-600" size={20} />}
+                    {a.unlocked && <CheckCircle2 className="ml-auto text-emerald-400" size={20} />}
                   </div>
                 ))}
               </div>
@@ -394,19 +431,19 @@ export default function App() {
       <AnimatePresence>
         {showNotifications && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="bg-white rounded-3xl p-6 w-full max-w-md">
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="bg-[#7a3035] border border-[#8a363c] rounded-3xl p-6 w-full max-w-md text-white shadow-2xl">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold">Уведомления</h2>
-                <button onClick={() => setShowNotifications(false)} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition-colors"><X size={20} /></button>
+                <button onClick={() => setShowNotifications(false)} className="p-2 bg-[#653236] rounded-full hover:bg-[#8a363c] transition-colors"><X size={20} /></button>
               </div>
               <div className="space-y-3">
                 {notificationsList.map(n => (
-                  <div key={n.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
+                  <div key={n.id} className="p-4 rounded-2xl bg-[#653236]/40 border border-[#8a363c]">
                     <div className="flex justify-between items-start mb-1">
-                      <h4 className="font-bold text-slate-800">{n.title}</h4>
-                      <span className="text-[10px] text-slate-400 uppercase font-bold">{n.time}</span>
+                      <h4 className="font-bold text-rose-100">{n.title}</h4>
+                      <span className="text-[10px] text-rose-100/30 uppercase font-bold">{n.time}</span>
                     </div>
-                    <p className="text-sm text-slate-500 leading-relaxed">{n.text}</p>
+                    <p className="text-sm text-rose-100/60 leading-relaxed">{n.text}</p>
                   </div>
                 ))}
               </div>
@@ -419,18 +456,18 @@ export default function App() {
       <AnimatePresence>
         {showBookingModal && selectedTeacher && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }} 
-              animate={{ opacity: 1, y: 0 }} 
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20 }}
-              className="bg-white rounded-3xl p-8 w-full max-w-lg shadow-2xl"
+              className="bg-[#7a3035] border border-[#8a363c] rounded-3xl p-8 w-full max-w-lg shadow-2xl text-white"
             >
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold">Запись на занятие</h2>
-                <button onClick={() => setShowBookingModal(false)} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition-colors"><X size={20} /></button>
+                <button onClick={() => setShowBookingModal(false)} className="p-2 bg-[#653236] rounded-full hover:bg-[#8a363c] transition-colors"><X size={20} /></button>
               </div>
-              
-              <div className="flex items-center gap-4 mb-8 p-4 bg-slate-50 rounded-2xl">
+
+              <div className="flex items-center gap-4 mb-8 p-4 bg-[#653236]/40 rounded-2xl border border-[#8a363c]">
                 <div className={`w-16 h-16 rounded-xl flex items-center justify-center text-2xl font-bold ${selectedTeacher.color}`}>
                   {selectedTeacher.name.split(' ').map((n: string) => n[0]).join('')}
                 </div>
@@ -451,10 +488,10 @@ export default function App() {
                 </div>
               </div>
 
-              <button 
-                onClick={() => { 
-                  setBookedTeacherIds(prev => [...prev, selectedTeacher.id]); 
-                  setShowBookingModal(false); 
+              <button
+                onClick={() => {
+                  setBookedTeacherIds(prev => [...prev, selectedTeacher.id]);
+                  setShowBookingModal(false);
                 }}
                 className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all active:scale-[0.98]"
               >
@@ -465,26 +502,89 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      <footer className="bg-white border-t py-12 mt-20">
-        <div className="max-w-6xl mx-auto px-4 flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <img src="/Logo.png" alt="Logo" className="w-8 h-8" />
-            <span className="font-bold">BilimLife</span>
+
+
+      <AnimatePresence>
+        {selectedBook && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 z-50">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-white rounded-[32px] overflow-hidden w-full max-w-4xl shadow-2xl flex flex-col md:flex-row h-[90vh] md:h-auto max-h-[90vh]"
+            >
+              <div className="w-full md:w-2/5 h-64 md:h-auto relative bg-slate-100">
+                <img src={selectedBook.cover} className="w-full h-full object-cover" alt={selectedBook.title} />
+                <button
+                  onClick={() => setSelectedBook(null)}
+                  className="absolute top-4 left-4 p-2 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/40 transition-colors md:hidden"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="flex-1 p-8 md:p-12 overflow-y-auto flex flex-col">
+                <div className="hidden md:flex justify-end mb-4">
+                  <button onClick={() => setSelectedBook(null)} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition-colors">
+                    <X size={20} />
+                  </button>
+                </div>
+
+                <div className="mb-8">
+                  <h2 className="text-3xl font-black text-slate-900 mb-2 leading-tight">{selectedBook.title}</h2>
+                  <p className="text-indigo-600 font-bold text-lg">{selectedBook.author}</p>
+                </div>
+
+                <div className="space-y-8 flex-1">
+                  <div>
+                    <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">Original Description</h4>
+                    <p className="text-slate-700 leading-relaxed text-lg italic">
+                      "{selectedBook.description || 'Description soon...'}"
+                    </p>
+                  </div>
+
+                  <div>
+                    <h4 className="text-xs font-black uppercase tracking-widest text-indigo-400 mb-3">Перевод (RU)</h4>
+                    <p className="text-slate-600 leading-relaxed">
+                      {selectedBook.russianDescription || 'Описание скоро появится...'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-12 flex gap-4">
+                  <button className="flex-1 bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all hover:scale-[1.02] active:scale-[0.98]">
+                    Читать книгу
+                  </button>
+                  <button className="px-6 py-4 bg-slate-100 text-slate-600 rounded-2xl font-bold hover:bg-slate-200 transition-all">
+                    В избранное
+                  </button>
+                </div>
+              </div>
+            </motion.div>
           </div>
-          <div className="hidden md:block text-slate-400 text-sm italic">
-            "Учитесь с удовольствием — открывайте мир вместе с нами!"
-          </div>
-          <div className="flex gap-6 text-slate-400">
-            <Instagram size={20} />
-            <Youtube size={20} />
-            <Telegram size={20} />
-          </div>
-        </div>
-      </footer>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {isAnimating && <DiamondFlight onComplete={handleAnimationComplete} />}
       </AnimatePresence>
+
+      <footer className="bg-[#653236] border-t border-[#7a3035] py-16 mt-auto text-white">
+        <div className="max-w-6xl mx-auto px-4 flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <img src="/Logo.png" alt="Logo" className="w-8 h-10" />
+            <span className="font-bold text-white">BilimLife</span>
+          </div>
+          <div className="hidden md:block text-white text-sm italic">
+            "Учитесь с удовольствием — открывайте мир вместе с нами!"
+          </div>
+          <div className="flex gap-6 text-white">
+            <Instagram size={20} className="hover:text-rose-200 cursor-pointer transition-colors" />
+            <Youtube size={20} className="hover:text-rose-200 cursor-pointer transition-colors" />
+            <Telegram size={20} className="hover:text-rose-200 cursor-pointer transition-colors" />
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

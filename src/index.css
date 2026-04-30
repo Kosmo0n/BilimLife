@@ -1,3 +1,40 @@
 @import "tailwindcss/base";
 @import "tailwindcss/components";
 @import "tailwindcss/utilities";
+
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #ae454c 0%, #977851 50%, #90484d 100%);
+  background-attachment: fixed;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: #fff1f2;
+}
+
+:root {
+  --theme-dark: #7a3035;
+  --theme-darker: #653236;
+  --theme-border: #8a363c;
+  --theme-text-light: #fff1f2;
+  --theme-text-muted: #fda4af;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Custom scrollbar for premium feel */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #653236;
+}
+::-webkit-scrollbar-thumb {
+  background: #ae454c;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #fda4af;
+}
