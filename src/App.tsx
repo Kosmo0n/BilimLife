@@ -213,7 +213,22 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col" style={{ position: 'relative' }}>
+      {/* Фоновое фото — файл: /public/bg-photo.jpg */}
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 0,
+          backgroundImage: `url('/bg-photo.jpg')`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+          opacity: 0.55,
+          pointerEvents: 'none',
+        }}
+      />
+      <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <header className="sticky top-0 z-40 bg-[#7a3035]/80 backdrop-blur-md border-b border-[#8a363c] h-16 flex items-center px-4 justify-between text-white">
         <div onClick={() => setSelectedLang(null)} className="flex items-center gap-2 cursor-pointer">
           <img src="/Logo.png" alt="Logo" className="w-10 h-10" />
@@ -238,6 +253,61 @@ export default function App() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-8 flex-1 w-full">
+
+        {/* ─── PROJECT INFO BANNER ─── */}
+        <div className="mb-8 rounded-3xl overflow-hidden border border-[#8a363c] shadow-2xl">
+          <div className="bg-gradient-to-r from-[#653236]/90 via-[#7a3035]/90 to-[#977851]/80 backdrop-blur-md px-8 py-6 flex flex-col md:flex-row items-center gap-6">
+            {/* Logo + Title */}
+            <div className="flex items-center gap-4 flex-shrink-0">
+              <img src="/Logo.png" alt="BilimLife" className="w-14 h-14 object-contain drop-shadow-lg" />
+              <div>
+                <h2 className="text-2xl font-black text-white tracking-tight">BilimLife</h2>
+                <p className="text-rose-200/70 text-xs font-medium uppercase tracking-widest">Образовательная платформа</p>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className="hidden md:block w-px h-12 bg-white/20" />
+
+            {/* Description */}
+            <div className="flex-1 text-center md:text-left">
+              <p className="text-rose-100/90 text-sm leading-relaxed">
+                🌍 Изучайте иностранные языки с ИИ-репетитором Элли, смотрите обучающий контент,
+                читайте книги и записывайтесь к лучшим преподавателям — всё в одном месте.
+              </p>
+            </div>
+
+            {/* Stats */}
+            <div className="flex gap-6 flex-shrink-0">
+              <div className="text-center">
+                <p className="text-2xl font-black text-white">5</p>
+                <p className="text-rose-200/60 text-[11px] uppercase tracking-wide">Языков</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-black text-white">AI</p>
+                <p className="text-rose-200/60 text-[11px] uppercase tracking-wide">Репетитор</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-black text-white">∞</p>
+                <p className="text-rose-200/60 text-[11px] uppercase tracking-wide">Контент</p>
+              </div>
+            </div>
+
+            {/* Instagram CTA */}
+            <a
+              href="https://www.instagram.com/bilimlife_edutemplatee?igsh=MWZrcHU4Mzdkc3UyMw%3D%3D&utm_source=qr"
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-2 px-5 py-2.5 rounded-2xl font-bold text-sm text-white transition-all hover:scale-105 active:scale-95 flex-shrink-0 shadow-lg"
+              style={{ background: 'linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045)' }}
+            >
+              <Instagram size={18} />
+              Instagram
+            </a>
+          </div>
+        </div>
+
+        {/* ─── TABS NAV ─── */}
         <nav className="flex gap-2 mb-8 overflow-x-auto pb-2">
           {['dashboard', 'teachers', 'library', 'ellie', 'cinema'].map((tab) => (
             <button key={tab} onClick={() => setActiveTab(tab)} className={`px-6 py-2 rounded-full text-sm font-bold capitalize transition-all ${activeTab === tab ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/40' : 'bg-[#7a3035]/60 text-rose-100/70 border border-[#8a363c] hover:bg-[#7a3035]'}`}>
@@ -286,9 +356,9 @@ export default function App() {
           <div className="grid md:grid-cols-3 gap-6">
             {!libraryView ? (
               [
-                { id: 'kids', title: 'Дети', subtitle: 'Сказки и игры (3-12 лет)', color: 'bg-emerald-500' },
-                { id: 'students', title: 'Студенты', subtitle: 'Развитие и хобби (13-21 год)', color: 'bg-blue-500' },
-                { id: 'adults', title: 'Взрослые', subtitle: 'Бизнес и классика (22+ года)', color: 'bg-purple-500' }
+                { id: 'kids', title: 'Дети', subtitle: 'Сказки и игры', color: 'bg-emerald-500' },
+                { id: 'students', title: 'Студенты', subtitle: 'Развитие и хобби', color: 'bg-blue-500' },
+                { id: 'adults', title: 'Взрослые', subtitle: 'Бизнес и классика', color: 'bg-purple-500' }
               ].map((cat) => (
                 <div key={cat.id} onClick={() => setLibraryView(cat.id)} className="bg-[#7a3035]/40 p-8 rounded-3xl border border-[#8a363c] cursor-pointer hover:bg-[#7a3035]/60 transition-all group backdrop-blur-sm text-white">
                   <div className={`w-14 h-14 ${cat.color} rounded-2xl mb-6 flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform`}><BookOpen size={28} /></div>
@@ -318,7 +388,7 @@ export default function App() {
         )}
 
         {activeTab === 'ellie' && (
-          <div className="max-w-2xl mx-auto h-[600px] bg-white rounded-3xl shadow-xl flex flex-col overflow-hidden border">
+          <div className="max-w-4xl mx-auto bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden border" style={{ height: 'calc(100vh - 260px)', minHeight: '500px' }}>
             <div className="p-4 bg-indigo-600 text-white flex items-center gap-4">
               <div className="w-12 h-12 rounded-full overflow-hidden bg-white/20">
                 <img src="/Assitentfoto.png" alt="Ellie" className="w-full h-full object-cover" />
@@ -579,12 +649,22 @@ export default function App() {
             "Учитесь с удовольствием — открывайте мир вместе с нами!"
           </div>
           <div className="flex gap-6 text-white">
-            <Instagram size={20} className="hover:text-rose-200 cursor-pointer transition-colors" />
-            <Youtube size={20} className="hover:text-rose-200 cursor-pointer transition-colors" />
-            <Telegram size={20} className="hover:text-rose-200 cursor-pointer transition-colors" />
+            <a
+              href="https://www.instagram.com/bilimlife_edutemplatee?igsh=MWZrcHU4Mzdkc3UyMw%3D%3D&utm_source=qr"
+              target="_blank"
+              rel="noreferrer"
+              title="BilimLife в Instagram"
+              className="hover:text-rose-200 transition-all hover:scale-110 active:scale-95"
+              style={{ display: 'flex' }}
+            >
+              <Instagram size={20} />
+            </a>
+            <Youtube size={20} className="hover:text-rose-200 cursor-pointer transition-colors hover:scale-110" />
+            <Telegram size={20} className="hover:text-rose-200 cursor-pointer transition-colors hover:scale-110" />
           </div>
         </div>
       </footer>
+      </div>
     </div>
   );
 }
