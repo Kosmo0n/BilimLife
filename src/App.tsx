@@ -3,10 +3,17 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Gem, Trophy, Bell, BookOpen, PlayCircle, Globe, Send, Play,
   Instagram, Youtube, Send as Telegram, Smartphone, CheckCircle2,
-  X, Star, Mic, MicOff, Smile, Calendar, Clock
+  X, Star, Mic, MicOff, Smile, Calendar, Clock, User, Layers, Users, ClipboardCheck, LifeBuoy
 } from 'lucide-react';
 import { languages, booksData, cinemaData, teachers } from './data/constants';
 import { DiamondFlight } from './components/DiamondFlight';
+
+// New View Components
+import { ProfileView } from './components/views/ProfileView';
+import { PracticeView } from './components/views/PracticeView';
+import { CommunityView } from './components/views/CommunityView';
+import { AssessmentView } from './components/views/AssessmentView';
+import { SupportView } from './components/views/SupportView';
 
 interface Message {
   text: string;
@@ -22,7 +29,7 @@ interface Message {
 const pronunciationPhrases: Record<string, string[]> = {
   en: ['Hello, how are you?', 'The weather is beautiful today.', 'I love learning new languages.', 'Can you help me please?', 'Thank you very much!'],
   fr: ['Bonjour, comment allez-vous?', 'Il fait beau aujourd\'hui.', 'J\'aime apprendre les langues.', 'Pouvez-vous m\'aider?', 'Merci beaucoup!'],
-  es: ['Hola, ¿cómo estás?', 'Hoy hace buen tiempo.', 'Me encanta aprender idiomas.', '¿Puedes ayudarme por favor?', '¡Muchas gracias!'],
+  es: ['Hola, ¿cómo estás?', 'Hoy hace buen tiempo.', 'Me encanta aprender idiomas.', '¿Puedes ayudarме пож-ста?', '¡Muchas gracias!'],
   cn: ['你好，你怎么样？', '今天天气很好。', '我喜欢学习新语言。', '你能帮我吗？', '非常感谢！'],
   ar: ['مرحباً، كيف حالك؟', 'الطقس جميل اليوم.', 'أحب تعلم اللغات الجديدة.', 'هل يمكنك مساعدتي؟', 'شكراً جزيلاً!'],
 };
@@ -45,16 +52,14 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [messages, setMessages] = useState<Message[]>([{ text: "Привет! Я Элли. Давай попрактикуем язык?", isAi: true }]);
   const [inputText, setInputText] = useState("");
-  const [isSubmitted, setIsSubmitted] = useState(false);
   const [libraryView, setLibraryView] = useState<string | null>(null);
   const [canCollect, setCanCollect] = useState(true);
-  const [isRegistered, setIsRegistered] = useState(false);
-  const [showRegModal, setShowRegModal] = useState(false);
   const [cinemaLevel, setCinemaLevel] = useState('A1');
   const [showAchievements, setShowAchievements] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showStickers, setShowStickers] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
   const [activeCinemaType, setActiveCinemaType] = useState<'cartoons' | 'movies'>('cartoons');
   const [currentUser, setCurrentUser] = useState<{ username: string } | null>(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -63,6 +68,54 @@ export default function App() {
   const [selectedTeacher, setSelectedTeacher] = useState<any>(null);
   const [bookedTeacherIds, setBookedTeacherIds] = useState<number[]>([]);
   const [selectedBook, setSelectedBook] = useState<any>(null);
+  const [schedule, setSchedule] = useState([
+    { title: 'Разговорный клуб', time: 'Завтра, 18:00', type: 'Live' },
+    { title: 'Тест по Модулю 3', time: 'Через 2 дня', type: 'Deadline' },
+  ]);
+  const [supportMessages, setSupportMessages] = useState<any[]>([]);
+  const [communityPosts, setCommunityPosts] = useState<any[]>([
+    { 
+      id: 1, 
+      user: 'Алексей М.', 
+      avatar: 'AM', 
+      content: 'Ребят, как вы учите неправильные глаголы? У меня они совсем не лезут в голову 😅 Поделитесь лайфхаками!',
+      likes: 12,
+      comments: [],
+      time: '2 часа назад',
+      tag: 'English'
+    },
+    { 
+      id: 2, 
+      user: 'Sarah Wilson', 
+      avatar: 'SW', 
+      isTeacher: true,
+      content: 'New blog post about British idioms is out! Check it out in the Blog section below. Happy learning! 🇬🇧',
+      likes: 45,
+      comments: [],
+      time: '5 часов назад',
+      tag: 'Announcement'
+    },
+  ]);
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    const form = e.target as HTMLFormElement;
+    const username = (form.elements.namedItem('username') as HTMLInputElement).value;
+    setCurrentUser({ username });
+    localStorage.setItem('currentUser', JSON.stringify({ username }));
+    setShowLoginModal(false);
+  };
+
+  const handleRegister = (e: React.FormEvent) => {
+    e.preventDefault();
+    const form = e.target as HTMLFormElement;
+    const username = (form.elements.namedItem('username') as HTMLInputElement).value;
+    setCurrentUser({ username });
+    localStorage.setItem('currentUser', JSON.stringify({ username }));
+    setShowLoginModal(false);
+    setDiamonds(prev => prev + 100); // Registration bonus
+    alert('Поздравляем с регистрацией! Вам начислено 100 💎');
+  };
 
   const notificationsList = [
     { id: 1, title: 'Добро пожаловать!', text: 'Начни свой путь к новым знаниям прямо сейчас.', time: 'Только что' },
@@ -93,7 +146,6 @@ export default function App() {
     const storedUser = localStorage.getItem('currentUser');
     if (storedUser) {
       setCurrentUser(JSON.parse(storedUser));
-      setIsRegistered(true);
     }
   }, []);
 
@@ -170,15 +222,6 @@ export default function App() {
     try { rec.start(); } catch { setIsRecording(false); }
   };
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    const form = e.target as HTMLFormElement;
-    const username = (form.elements.namedItem('username') as HTMLInputElement).value;
-    setCurrentUser({ username });
-    localStorage.setItem('currentUser', JSON.stringify({ username }));
-    setShowLoginModal(false);
-  };
-
   if (!selectedLang) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
@@ -201,10 +244,29 @@ export default function App() {
         </div>
         {showLoginModal && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
-            <form onSubmit={handleLogin} className="bg-[#7a3035] p-8 rounded-3xl w-full max-w-md border border-[#8a363c] shadow-2xl">
-              <h2 className="text-2xl font-bold mb-4 text-white">Вход</h2>
+            <form onSubmit={isRegistering ? handleRegister : handleLogin} className="bg-[#7a3035] p-8 rounded-3xl w-full max-w-md border border-[#8a363c] shadow-2xl">
+              <h2 className="text-2xl font-bold mb-4 text-white">{isRegistering ? 'Регистрация' : 'Вход'}</h2>
               <input name="username" required placeholder="Имя пользователя" className="w-full p-3 bg-[#653236] text-white rounded-xl mb-4 outline-none border border-[#8a363c] placeholder:text-rose-100/30" />
-              <button type="submit" className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors">Войти</button>
+              {isRegistering && (
+                <input name="email" type="email" placeholder="Email (необязательно)" className="w-full p-3 bg-[#653236] text-white rounded-xl mb-4 outline-none border border-[#8a363c] placeholder:text-rose-100/30" />
+              )}
+              <button type="submit" className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors">
+                {isRegistering ? 'Зарегистрироваться' : 'Войти'}
+              </button>
+              <button 
+                type="button" 
+                onClick={() => setIsRegistering(!isRegistering)}
+                className="w-full mt-4 text-rose-100/60 text-sm font-bold hover:text-white"
+              >
+                {isRegistering ? 'Уже есть аккаунт? Войти' : 'Нет аккаунта? Зарегистрироваться'}
+              </button>
+              <button 
+                type="button" 
+                onClick={() => setShowLoginModal(false)}
+                className="w-full mt-2 text-rose-100/30 text-xs font-bold hover:text-rose-100/60"
+              >
+                Отмена
+              </button>
             </form>
           </div>
         )}
@@ -212,9 +274,20 @@ export default function App() {
     );
   }
 
+  const tabs = [
+    { id: 'dashboard', label: 'Главная', icon: Globe },
+    { id: 'practice', label: 'Практика', icon: Layers },
+    { id: 'ellie', label: 'Элли AI', icon: Mic },
+    { id: 'library', label: 'Библиотека', icon: BookOpen },
+    { id: 'cinema', label: 'Кинотеатр', icon: PlayCircle },
+    { id: 'community', label: 'Сообщество', icon: Users },
+    { id: 'assessment', label: 'Рейтинг', icon: ClipboardCheck },
+    { id: 'teachers', label: 'Учителя', icon: User },
+    { id: 'support', label: 'Помощь', icon: LifeBuoy },
+  ];
+
   return (
     <div className="min-h-screen flex flex-col" style={{ position: 'relative' }}>
-      {/* Фоновое фото — файл: /public/bg-photo.jpg */}
       <div
         style={{
           position: 'fixed',
@@ -235,7 +308,6 @@ export default function App() {
           <span className="font-bold text-xl">BilimLife</span>
         </div>
 
-        {/* Center - Motto */}
         <div className="hidden lg:flex flex-1 justify-center px-4">
           <p className="text-rose-100/60 font-medium italic text-sm tracking-wide">
             "Учитесь с удовольствием — открывайте мир вместе с нами!"
@@ -247,83 +319,87 @@ export default function App() {
             <Bell size={22} />
             <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-[#7a3035]"></span>
           </button>
-          <button onClick={() => setShowAchievements(true)} className="p-2 text-rose-100/70 hover:text-white transition-colors"><Trophy size={22} /></button>
+          <button onClick={() => setActiveTab('profile')} className="p-2 text-rose-100/70 hover:text-white transition-colors"><User size={22} /></button>
           <div className="flex items-center gap-1.5 font-bold"><Gem className="text-cyan-400" size={20} />{diamonds}</div>
         </div>
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-8 flex-1 w-full">
-
-        {/* ─── PROJECT INFO BANNER ─── */}
-        <div className="mb-8 rounded-3xl overflow-hidden border border-[#8a363c] shadow-2xl">
-          <div className="bg-gradient-to-r from-[#653236]/90 via-[#7a3035]/90 to-[#977851]/80 backdrop-blur-md px-8 py-6 flex flex-col md:flex-row items-center gap-6">
-            {/* Logo + Title */}
-            <div className="flex items-center gap-4 flex-shrink-0">
-              <img src="/Logo.png" alt="BilimLife" className="w-14 h-14 object-contain drop-shadow-lg" />
-              <div>
-                <h2 className="text-2xl font-black text-white tracking-tight">BilimLife</h2>
-                <p className="text-rose-200/70 text-xs font-medium uppercase tracking-widest">Образовательная платформа</p>
-              </div>
-            </div>
-
-            {/* Divider */}
-            <div className="hidden md:block w-px h-12 bg-white/20" />
-
-            {/* Description */}
-            <div className="flex-1 text-center md:text-left">
-              <p className="text-rose-100/90 text-sm leading-relaxed">
-                🌍 Изучайте иностранные языки с ИИ-репетитором Элли, смотрите обучающий контент,
-                читайте книги и записывайтесь к лучшим преподавателям — всё в одном месте.
-              </p>
-            </div>
-
-            {/* Stats */}
-            <div className="flex gap-6 flex-shrink-0">
-              <div className="text-center">
-                <p className="text-2xl font-black text-white">5</p>
-                <p className="text-rose-200/60 text-[11px] uppercase tracking-wide">Языков</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-black text-white">AI</p>
-                <p className="text-rose-200/60 text-[11px] uppercase tracking-wide">Репетитор</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-black text-white">∞</p>
-                <p className="text-rose-200/60 text-[11px] uppercase tracking-wide">Контент</p>
-              </div>
-            </div>
-
-            {/* Instagram CTA */}
-            <a
-              href="https://www.instagram.com/bilimlife_edutemplatee?igsh=MWZrcHU4Mzdkc3UyMw%3D%3D&utm_source=qr"
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-2 px-5 py-2.5 rounded-2xl font-bold text-sm text-white transition-all hover:scale-105 active:scale-95 flex-shrink-0 shadow-lg"
-              style={{ background: 'linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045)' }}
+        <nav className="flex gap-2 mb-10 overflow-x-auto pb-4 no-scrollbar">
+          {tabs.map((tab) => (
+            <button 
+              key={tab.id} 
+              onClick={() => setActiveTab(tab.id)} 
+              className={`px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest whitespace-nowrap transition-all flex items-center gap-2 border ${activeTab === tab.id ? 'bg-indigo-600 text-white border-indigo-500 shadow-xl shadow-indigo-900/40' : 'bg-[#7a3035]/60 text-rose-100/50 border-[#8a363c] hover:bg-[#7a3035] hover:text-white'}`}
             >
-              <Instagram size={18} />
-              Instagram
-            </a>
-          </div>
-        </div>
-
-        {/* ─── TABS NAV ─── */}
-        <nav className="flex gap-2 mb-8 overflow-x-auto pb-2">
-          {['dashboard', 'teachers', 'library', 'ellie', 'cinema'].map((tab) => (
-            <button key={tab} onClick={() => setActiveTab(tab)} className={`px-6 py-2 rounded-full text-sm font-bold capitalize transition-all ${activeTab === tab ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/40' : 'bg-[#7a3035]/60 text-rose-100/70 border border-[#8a363c] hover:bg-[#7a3035]'}`}>
-              {tab === 'ellie' ? 'Элли AI' : tab}
+              <tab.icon size={14} />
+              {tab.label}
             </button>
           ))}
         </nav>
 
         {activeTab === 'dashboard' && (
-          <div className="bg-gradient-to-br from-[#7a3035] to-[#977851] rounded-3xl p-8 text-white relative overflow-hidden border border-[#8a363c] shadow-2xl">
-            <h2 className="text-3xl font-bold mb-2">С возвращением, {currentUser?.username || 'Друг'}!</h2>
-            <p className="mb-6 opacity-90">Твой прогресс в {currentLangName} впечатляет.</p>
-            <button onClick={collectDiamonds} disabled={!canCollect} className="bg-white text-indigo-600 px-8 py-3 rounded-2xl font-bold disabled:opacity-50">
-              {canCollect ? "Забрать алмазы" : "До завтра!"}
-            </button>
+          <div className="space-y-8">
+            <div className="rounded-3xl overflow-hidden border border-[#8a363c] shadow-2xl">
+              <div className="bg-gradient-to-r from-[#653236]/90 via-[#7a3035]/90 to-[#977851]/80 backdrop-blur-md px-8 py-10 flex flex-col md:flex-row items-center gap-8">
+                <div className="flex items-center gap-4 flex-shrink-0">
+                  <img src="/Logo.png" alt="BilimLife" className="w-16 h-16 object-contain drop-shadow-lg" />
+                  <div>
+                    <h2 className="text-3xl font-black text-white tracking-tight">BilimLife</h2>
+                    <p className="text-rose-200/70 text-[10px] font-black uppercase tracking-[0.2em]">Platform Excellence</p>
+                  </div>
+                </div>
+                <div className="hidden md:block w-px h-16 bg-white/10" />
+                <div className="flex-1 text-center md:text-left">
+                  <h3 className="text-2xl font-bold text-white mb-2">С возвращением, {currentUser?.username || 'Друг'}!</h3>
+                  <p className="text-rose-100/70 text-sm leading-relaxed max-w-lg">
+                    Твой прогресс в изучении {currentLangName} идет по плану. Сегодня отличный день, чтобы выучить 10 новых слов!
+                  </p>
+                </div>
+                <button onClick={collectDiamonds} disabled={!canCollect} className="bg-white text-indigo-600 px-10 py-4 rounded-2xl font-black text-sm shadow-xl hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 whitespace-nowrap">
+                  {canCollect ? "Забрать алмазы +50 💎" : "До завтра!"}
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div onClick={() => setActiveTab('practice')} className="bg-[#7a3035]/40 backdrop-blur-md p-8 rounded-[32px] border border-[#8a363c] cursor-pointer hover:bg-[#7a3035]/60 transition-all group">
+                <Layers className="text-indigo-400 mb-6 group-hover:scale-110 transition-transform" size={32} />
+                <h4 className="text-xl font-bold text-white mb-2">Продолжить практику</h4>
+                <p className="text-rose-100/60 text-sm">У вас 15 новых слов в тренажере.</p>
+              </div>
+              <div onClick={() => setActiveTab('ellie')} className="bg-[#7a3035]/40 backdrop-blur-md p-8 rounded-[32px] border border-[#8a363c] cursor-pointer hover:bg-[#7a3035]/60 transition-all group">
+                <Mic className="text-rose-400 mb-6 group-hover:scale-110 transition-transform" size={32} />
+                <h4 className="text-xl font-bold text-white mb-2">Чат с Элли</h4>
+                <p className="text-rose-100/60 text-sm">Ваш ИИ-репетитор ждет вас.</p>
+              </div>
+              <div onClick={() => setActiveTab('community')} className="bg-[#7a3035]/40 backdrop-blur-md p-8 rounded-[32px] border border-[#8a363c] cursor-pointer hover:bg-[#7a3035]/60 transition-all group">
+                <Users className="text-cyan-400 mb-6 group-hover:scale-110 transition-transform" size={32} />
+                <h4 className="text-xl font-bold text-white mb-2">Сообщество</h4>
+                <p className="text-rose-100/60 text-sm">3 новых вопроса на форуме.</p>
+              </div>
+            </div>
           </div>
+        )}
+
+        {activeTab === 'profile' && <ProfileView user={currentUser} diamonds={diamonds} schedule={schedule} />}
+        {activeTab === 'practice' && <PracticeView selectedLang={selectedLang || 'en'} onEarn={(amount) => setDiamonds(d => d + amount)} />}
+        {activeTab === 'community' && (
+          <CommunityView 
+            selectedLang={selectedLang || 'en'}
+            posts={communityPosts} 
+            onPost={(post) => setCommunityPosts(prev => [post, ...prev])}
+            onLike={(id) => setCommunityPosts(prev => prev.map(p => p.id === id ? { ...p, likes: p.likes + 1 } : p))}
+            onComment={(id, comment) => setCommunityPosts(prev => prev.map(p => p.id === id ? { ...p, comments: [...p.comments, comment] } : p))}
+            user={currentUser}
+          />
+        )}
+        {activeTab === 'assessment' && <AssessmentView selectedLang={selectedLang || 'en'} onEarn={(amount) => setDiamonds(d => d + amount)} />}
+        {activeTab === 'support' && (
+          <SupportView 
+            messages={supportMessages} 
+            onSendMessage={(msg) => setSupportMessages(prev => [...prev, msg])} 
+          />
         )}
 
         {activeTab === 'teachers' && (
@@ -471,7 +547,6 @@ export default function App() {
         )}
       </main>
 
-      {/* Achievements Modal */}
       <AnimatePresence>
         {showAchievements && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -497,7 +572,6 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Notifications Modal */}
       <AnimatePresence>
         {showNotifications && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -522,7 +596,6 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Booking Modal */}
       <AnimatePresence>
         {showBookingModal && selectedTeacher && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -561,6 +634,7 @@ export default function App() {
               <button
                 onClick={() => {
                   setBookedTeacherIds(prev => [...prev, selectedTeacher.id]);
+                  setSchedule(prev => [...prev, { title: `Урок с ${selectedTeacher.name}`, time: 'Завтра, 14:00', type: 'Live' }]);
                   setShowBookingModal(false);
                 }}
                 className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all active:scale-[0.98]"
@@ -571,8 +645,6 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
-
-
 
       <AnimatePresence>
         {selectedBook && (

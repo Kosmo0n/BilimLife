@@ -194,3 +194,74 @@ export const teachers = [
   { id: 9, name: 'Elena Gomez', lang: 'Spanish', color: 'bg-yellow-100 text-yellow-600' },
   { id: 10, name: 'Carlos Ruiz', lang: 'Spanish', color: 'bg-indigo-100 text-indigo-600' },
 ];
+
+export const practiceData: Record<string, any[]> = {
+  en: [
+    { word: 'Environment', transcription: '[ɪnˈvaɪrənmənt]', translation: 'Окружающая среда', example: 'We must protect the environment.' },
+    { word: 'Achievement', transcription: '[əˈtʃiːvmənt]', translation: 'Достижение', example: 'It was a great achievement.' },
+    { word: 'Sustainable', transcription: '[səˈsteɪnəbl]', translation: 'Устойчивый', example: 'Sustainable development is key.' },
+  ],
+  fr: [
+    { word: 'Bonjour', transcription: '[bɔ̃ʒuʁ]', translation: 'Здравствуйте', example: 'Bonjour, comment allez-vous?' },
+    { word: 'Bibliothèque', transcription: '[bibliɔtɛk]', translation: 'Библиотека', example: 'Je vais à la bibliothèque.' },
+  ],
+  es: [
+    { word: 'Gracias', transcription: '[ˈɡɾaθjas]', translation: 'Спасибо', example: 'Muchas gracias por todo.' },
+    { word: 'Felicidad', transcription: '[feliθiˈðað]', translation: 'Счастье', example: 'La felicidad es importante.' },
+  ],
+  cn: [
+    { word: '你好', transcription: '[Nǐ hǎo]', translation: 'Привет', example: '你好，很高兴见到你。' },
+    { word: '谢谢', transcription: '[Xièxiè]', translation: 'Спасибо', example: '谢谢你的帮助。' },
+  ],
+  ar: [
+    { word: 'مرحباً', transcription: '[Marḥaban]', translation: 'Привет', example: 'مرحباً بك в منزلنا.' },
+    { word: 'شكراً', transcription: '[Shukran]', translation: 'Спасибо', example: 'شكراً جزيلاً لك.' },
+  ],
+};
+
+export const quizData: Record<string, any[]> = {
+  en: [
+    { question: 'What is the opposite of "Hot"?', options: ['Cold', 'Warm', 'Sunny', 'Dry'], correct: 0 },
+    { question: 'Past tense of "Speak"?', options: ['Speaked', 'Spoke', 'Spoken', 'Speaking'], correct: 1 },
+  ],
+  fr: [
+    { question: 'Comment dit-on "Water" en français?', options: ['Pain', 'Eau', 'Lait', 'Vin'], correct: 1 },
+    { question: 'Le pluriel de "Chat"?', options: ['Chats', 'Chate', 'Chatx', 'Chatus'], correct: 0 },
+  ],
+  es: [
+    { question: '¿Cómo se dice "Red" en español?', options: ['Azul', 'Rojo', 'Verde', 'Amarillo'], correct: 1 },
+    { question: 'Plural de "Libro"?', options: ['Libros', 'Libre', 'Libreza', 'Libramen'], correct: 0 },
+  ],
+  cn: [
+    { question: '"再见" means?', options: ['Hello', 'Goodbye', 'Thank you', 'Please'], correct: 1 },
+    { question: 'Which character means "Person"?', options: ['人', '大', '天', '口'], correct: 0 },
+  ],
+  ar: [
+    { question: 'How do you write "Peace"?', options: ['سلام', 'کلام', 'طعام', 'منام'], correct: 0 },
+    { question: '"أنا" means?', options: ['You', 'He', 'I', 'She'], correct: 2 },
+  ],
+};
+
+export const assessmentData: Record<string, any[]> = {
+  en: [
+    { q: 'Choose the correct form: "She ___ to school every day."', options: ['go', 'goes', 'going', 'gone'], correct: 1 },
+    { q: 'Which word is a synonym for "Fast"?', options: ['Slow', 'Quick', 'Loud', 'Quiet'], correct: 1 },
+    { q: 'Translate "Book" to Russian:', options: ['Ручка', 'Стол', 'Книга', 'Окно'], correct: 2 },
+  ],
+  fr: [
+    { q: 'Translate "Apple" to French:', options: ['Pomme', 'Poire', 'Orange', 'Banane'], correct: 0 },
+    { q: 'Which is a greeting?', options: ['Merci', 'Bonjour', 'S\'il vous plaît', 'Pardon'], correct: 1 },
+  ],
+  es: [
+    { q: 'Translate "House" to Spanish:', options: ['Mesa', 'Silla', 'Casa', 'Perro'], correct: 2 },
+    { q: 'Which means "Good morning"?', options: ['Buenas noches', 'Buenas tardes', 'Buenos días', 'Hola'], correct: 2 },
+  ],
+  cn: [
+    { q: 'What is "Water" in Chinese?', options: ['水', '火', '土', '木'], correct: 0 },
+    { q: 'Which character means "Mountain"?', options: ['山', '川', '日', '月'], correct: 0 },
+  ],
+  ar: [
+    { q: 'What is "Book" in Arabic?', options: ['كتاب', 'قلم', 'مكتب', 'دفتر'], correct: 0 },
+    { q: 'Which is a number?', options: ['بيت', 'واحد', 'سماء', 'بحر'], correct: 1 },
+  ],
+};
